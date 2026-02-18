@@ -3,6 +3,7 @@ import { LeadStatus, Prisma, UserRole } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { leadInclude } from "@/lib/server/lead-serializer";
 import { requireRoles, requireUser } from "@/lib/server/auth";
+import { validateLeadCreatePayload } from "@/lib/server/validators";
 
 export const dynamic = "force-dynamic";
 
@@ -67,9 +68,8 @@ export async function POST(request: Request) {
   const { user, error } = await requireRoles(allowed);
   if (error || !user) return error;
 
-  const required = ["cnpj", "razaoSocial", "contactName", "contactPhone"];
-  const missing = required.filter((k) => !body?.[k]);
-  if (missing.length) return NextResponse.json({ error: `Campos obrigatórios ausentes: ${missing.join(", ")}` }, { status: 400 });
+  const validationError = validateLeadCreatePayload(body);
+  if (validationError) return NextResponse.json({ error: validationError }, { status: 400 });
 
   const cnpj = String(body.cnpj).replace(/\D/g, "");
   const existingCompany = await prisma.company.findUnique({ where: { cnpj } });

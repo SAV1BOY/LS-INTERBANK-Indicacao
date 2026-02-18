@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { leadInclude } from "@/lib/server/lead-serializer";
 import { requireUser } from "@/lib/server/auth";
 import { canAccessLead } from "@/lib/permissions";
+import { validateLeadUpdatePayload } from "@/lib/server/validators";
 
 type Params = { params: { id: string } };
 
@@ -30,6 +31,8 @@ export async function PUT(request: Request, { params }: Params) {
   if (!existing) return NextResponse.json({ error: "Lead não encontrado" }, { status: 404 });
 
   const body = await request.json();
+  const validationError = validateLeadUpdatePayload(body);
+  if (validationError) return NextResponse.json({ error: validationError }, { status: 400 });
   const isOwner = existing.registradorId === user.id;
   const isManager = user.role === "ADMIN" || user.role === "GERENTE";
 

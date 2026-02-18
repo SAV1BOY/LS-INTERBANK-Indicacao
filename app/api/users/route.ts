@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { requireRoles } from "@/lib/server/auth";
+import { validateUserPayload } from "@/lib/server/validators";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -37,9 +38,8 @@ export async function POST(request: Request) {
   if (error) return error;
 
   const body = await request.json();
-  if (!body?.email || !body?.name || !body?.password || !body?.role) {
-    return NextResponse.json({ error: "Dados obrigatórios ausentes" }, { status: 400 });
-  }
+  const validationError = validateUserPayload(body);
+  if (validationError) return NextResponse.json({ error: validationError }, { status: 400 });
 
   const existing = await prisma.user.findUnique({ where: { email: body.email } });
   if (existing) {

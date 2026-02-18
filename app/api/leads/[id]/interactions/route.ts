@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireRoles } from "@/lib/server/auth";
 import { canAccessLead } from "@/lib/permissions";
+import { validateInteractionPayload } from "@/lib/server/validators";
 
 type Params = { params: { id: string } };
 
@@ -10,9 +11,8 @@ export async function POST(request: Request, { params }: Params) {
   if (error || !user) return error;
 
   const body = await request.json();
-  if (!body?.type) {
-    return NextResponse.json({ error: "Tipo é obrigatório" }, { status: 400 });
-  }
+  const validationError = validateInteractionPayload(body);
+  if (validationError) return NextResponse.json({ error: validationError }, { status: 400 });
 
   const lead = await prisma.lead.findUnique({ where: { id: params.id } });
   if (!lead) return NextResponse.json({ error: "Lead não encontrado" }, { status: 404 });
@@ -45,9 +45,8 @@ export async function PUT(request: Request, { params }: Params) {
   if (error || !user) return error;
 
   const body = await request.json();
-  if (!body?.interactionId) {
-    return NextResponse.json({ error: "interactionId é obrigatório" }, { status: 400 });
-  }
+  const validationError = validateInteractionPayload(body, true);
+  if (validationError) return NextResponse.json({ error: validationError }, { status: 400 });
 
   const existing = await prisma.interaction.findFirst({ where: { id: body.interactionId, leadId: params.id } });
   if (!existing) return NextResponse.json({ error: "Interação não encontrada" }, { status: 404 });

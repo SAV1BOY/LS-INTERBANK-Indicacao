@@ -2,6 +2,7 @@ import { requireRoles } from "@/lib/server/auth";
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
+import { validateUserPayload } from "@/lib/server/validators";
 
 type Params = { params: { id: string } };
 
@@ -9,6 +10,8 @@ export async function PUT(request: Request, { params }: Params) {
   const { error } = await requireRoles(["ADMIN"]);
   if (error) return error;
   const body = await request.json();
+  const validationError = validateUserPayload(body, true);
+  if (validationError) return NextResponse.json({ error: validationError }, { status: 400 });
 
   const data: any = {
     name: body?.name,

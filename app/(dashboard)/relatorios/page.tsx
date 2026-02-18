@@ -12,11 +12,9 @@ import {
   Target, 
   CheckCircle2, 
   Clock, 
-  XCircle,
   Loader2,
   Download
 } from "lucide-react";
-import { hasPermission } from "@/lib/permissions";
 import { STATUS_LABELS } from "@/lib/utils/status";
 
 interface PerformanceData {
@@ -69,13 +67,9 @@ export default function RelatoriosPage() {
         if (statsRes.ok) {
           const statsData = await statsRes.json();
           setStats({
-            totalLeads: statsData.leadsCreated ?? 0,
+            totalLeads: statsData.totalLeads ?? 0,
             statusCounts: statsData.statusCounts ?? {},
-            periodComparison: {
-              current: statsData.leadsCreated ?? 0,
-              previous: Math.floor((statsData.leadsCreated ?? 0) * 0.85),
-              change: 15,
-            },
+            periodComparison: statsData.periodComparison ?? { current: 0, previous: 0, change: 0 },
           });
         }
       } catch (error) {
