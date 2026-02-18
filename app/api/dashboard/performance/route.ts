@@ -1,7 +1,10 @@
+import { requireRoles } from "@/lib/server/auth";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
 export async function GET() {
+  const { error } = await requireRoles(["ADMIN"]);
+  if (error) return error;
   const managers = await prisma.user.findMany({
     where: { role: "GERENTE", active: true },
     select: {

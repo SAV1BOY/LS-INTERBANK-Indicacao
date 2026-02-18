@@ -1,40 +1,56 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { leadInclude } from "@/lib/server/lead-serializer";
-
-export const dynamic = "force-dynamic";
+import { requireUser } from "@/lib/server/auth";
+import { canAccessLead } from "@/lib/permissions";
 
 type Params = { params: { id: string } };
 
-export async function GET(_: Request, { params }: Params) {
-  const lead = await prisma.lead.findUnique({
-    where: { id: params.id },
-    include: leadInclude,
-  });
+export const dynamic = "force-dynamic";
 
-  if (!lead) {
-    return NextResponse.json({ error: "Lead não encontrado" }, { status: 404 });
+export async function GET(_: Request, { params }: Params) {
+  const { user, error } = await requireUser();
+  if (error || !user) return error;
+
+  const lead = await prisma.lead.findUnique({ where: { id: params.id }, include: leadInclude });
+  if (!lead) return NextResponse.json({ error: "Lead não encontrado" }, { status: 404 });
+
+  if (!canAccessLead(user.role, user.id, lead)) {
+    return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
   }
 
   return NextResponse.json(lead);
 }
 
 export async function PUT(request: Request, { params }: Params) {
+  const { user, error } = await requireUser();
+  if (error || !user) return error;
+
+  const existing = await prisma.lead.findUnique({ where: { id: params.id } });
+  if (!existing) return NextResponse.json({ error: "Lead não encontrado" }, { status: 404 });
+
   const body = await request.json();
+  const isOwner = existing.registradorId === user.id;
+  const isManager = user.role === "ADMIN" || user.role === "GERENTE";
 
-  const lead = await prisma.lead.update({
-    where: { id: params.id },
-    data: {
-      necessity: body.necessity ?? undefined,
-      urgency: body.urgency ?? undefined,
-      notes: body.notes ?? undefined,
-      source: body.source ?? undefined,
-      closeReasonDetail: body.closeReasonDetail ?? undefined,
-    },
-    include: leadInclude,
-  });
+  if (!isOwner && !isManager) {
+    return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+  }
 
-  if (body?.company || body?.contact) {
+  const data: any = {};
+  if (isManager) {
+    data.necessity = body.necessity ?? undefined;
+    data.urgency = body.urgency ?? undefined;
+    data.source = body.source ?? undefined;
+    data.closeReasonDetail = body.closeReasonDetail ?? undefined;
+  }
+  if (isOwner || isManager) {
+    data.notes = body.notes ?? undefined;
+  }
+
+  const lead = await prisma.lead.update({ where: { id: params.id }, data, include: leadInclude });
+
+  if ((body?.company || body?.contact) && isManager) {
     if (body.company) {
       await prisma.company.update({
         where: { id: lead.companyId },

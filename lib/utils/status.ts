@@ -44,17 +44,19 @@ export const WIN_REASONS: Record<string, string> = {
 export const LOSS_REASONS: Record<string, string> = {
   SEM_INTERESSE: 'Sem interesse no momento',
   SEM_FIT: 'Fora do perfil (sem fit)',
+  SEM_CONTATO: 'Sem contato com decisor',
   JA_CLIENTE: 'Já é cliente LS Interbank',
-  DUPLICADA: 'Lead duplicado',
-  SEM_CONSENTIMENTO: 'Sem consentimento para contato',
+  CONCORRENTE: 'Optou por concorrente',
 };
 
 // Motivos de INATIVO (reciclável para futuro - pode retornar)
 export const INACTIVE_REASONS: Record<string, string> = {
-  NAO_FOI_POSSIVEL_CONTATO: 'Não foi possível contato',
-  OPTOU_CONCORRENTE: 'Optou por concorrente',
-  TIMING_INADEQUADO: 'Timing inadequado (retornar futuro)',
-  OUTRO_MOTIVO: 'Outro motivo',
+  TIMING: 'Timing inadequado (retornar futuro)',
+  DUPLICADA: 'Lead duplicado',
+  SEM_CONSENTIMENTO: 'Sem consentimento para contato',
+  DADOS_INCORRETOS: 'Dados incorretos',
+  NAO_ATENDE_TELEFONE: 'Não atende telefone',
+  OUTRO: 'Outro motivo',
 };
 
 // Todos os motivos combinados

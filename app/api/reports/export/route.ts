@@ -1,3 +1,4 @@
+import { requireRoles } from "@/lib/server/auth";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
@@ -23,11 +24,18 @@ function csvEscape(value: unknown) {
 }
 
 export async function GET(request: NextRequest) {
+  const { user, error } = await requireRoles(["ADMIN", "GERENTE"]);
+  if (error || !user) return error;
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status");
 
+  const roleScope = user.role === "ADMIN" ? {} : { OR: [{ responsavelId: user.id }, { isProspeccao: true, registradorId: user.id }] };
+
   const leads = await prisma.lead.findMany({
-    where: status && status !== "all" ? { status: status as any } : undefined,
+    where: {
+      ...roleScope,
+      ...(status && status !== "all" ? { status: status as any } : {}),
+    },
     include: {
       company: true,
       registrador: { select: { name: true } },

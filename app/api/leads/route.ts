@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { LeadStatus, Prisma } from "@prisma/client";
+import { LeadStatus, Prisma, UserRole } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { leadInclude } from "@/lib/server/lead-serializer";
+import { requireRoles, requireUser } from "@/lib/server/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
+  const { user, error } = await requireUser();
+  if (error || !user) return error;
+
   const { searchParams } = new URL(request.url);
   const page = Number(searchParams.get("page") ?? "1");
   const limit = Number(searchParams.get("limit") ?? "20");
@@ -13,7 +17,20 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get("status");
   const prospeccao = searchParams.get("prospeccao") === "true";
 
+  const roleScope: Prisma.LeadWhereInput =
+    user.role === "ADMIN"
+      ? {}
+      : user.role === "GERENTE"
+      ? {
+          OR: [
+            { responsavelId: user.id },
+            { isProspeccao: true, registradorId: user.id },
+          ],
+        }
+      : { registradorId: user.id };
+
   const where: Prisma.LeadWhereInput = {
+    ...roleScope,
     ...(prospeccao ? { isProspeccao: true } : {}),
     ...(status && status !== "all" ? { status: status as LeadStatus } : {}),
     ...(search
@@ -39,23 +56,20 @@ export async function GET(request: NextRequest) {
     }),
   ]);
 
-  return NextResponse.json({
-    data: leads,
-    total,
-    page,
-    limit,
-    totalPages: Math.ceil(total / limit),
-  });
+  return NextResponse.json({ data: leads, total, page, limit, totalPages: Math.ceil(total / limit) });
 }
 
 export async function POST(request: Request) {
   const body = await request.json();
 
+  const isProspeccao = Boolean(body?.isProspeccao);
+  const allowed: UserRole[] = isProspeccao ? ["ADMIN", "GERENTE"] : ["ADMIN", "ALIADO"];
+  const { user, error } = await requireRoles(allowed);
+  if (error || !user) return error;
+
   const required = ["cnpj", "razaoSocial", "contactName", "contactPhone"];
   const missing = required.filter((k) => !body?.[k]);
-  if (missing.length) {
-    return NextResponse.json({ error: `Campos obrigatórios ausentes: ${missing.join(", ")}` }, { status: 400 });
-  }
+  if (missing.length) return NextResponse.json({ error: `Campos obrigatórios ausentes: ${missing.join(", ")}` }, { status: 400 });
 
   const cnpj = String(body.cnpj).replace(/\D/g, "");
   const existingCompany = await prisma.company.findUnique({ where: { cnpj } });
@@ -99,27 +113,23 @@ export async function POST(request: Request) {
     },
   });
 
-  const admin = await prisma.user.findFirst({ where: { role: "ADMIN" } });
-  const registradorId = body.registradorId || admin?.id;
-
-  if (!registradorId) {
-    return NextResponse.json({ error: "Nenhum usuário disponível para registrar lead" }, { status: 400 });
-  }
+  const registradorId = user.id;
+  const responsavelId = body.responsavelId || (isProspeccao && user.role === "GERENTE" ? user.id : null);
 
   const lead = await prisma.lead.create({
     data: {
       companyId: company.id,
       contactId: contact.id,
       registradorId,
-      responsavelId: body.responsavelId || null,
-      status: body.responsavelId ? "ATRIBUIDA" : "PENDENTE",
+      responsavelId,
+      status: responsavelId ? "ATRIBUIDA" : "PENDENTE",
       source: body.source || null,
       necessity: body.necessity || null,
       urgency: body.urgency || null,
       notes: body.notes || null,
       imageUrl: body.imageUrl || null,
-      isProspeccao: Boolean(body.isProspeccao),
-      assignedAt: body.responsavelId ? new Date() : null,
+      isProspeccao,
+      assignedAt: responsavelId ? new Date() : null,
     },
     include: leadInclude,
   });

@@ -1,3 +1,4 @@
+import { requireRoles } from "@/lib/server/auth";
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
@@ -5,6 +6,8 @@ import { prisma } from "@/lib/db";
 type Params = { params: { id: string } };
 
 export async function PUT(request: Request, { params }: Params) {
+  const { error } = await requireRoles(["ADMIN"]);
+  if (error) return error;
   const body = await request.json();
 
   const data: any = {
@@ -41,6 +44,8 @@ export async function PUT(request: Request, { params }: Params) {
 }
 
 export async function DELETE(_: Request, { params }: Params) {
+  const { error } = await requireRoles(["ADMIN"]);
+  if (error) return error;
   await prisma.user.delete({ where: { id: params.id } });
   return NextResponse.json({ success: true });
 }

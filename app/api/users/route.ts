@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
+import { requireRoles } from "@/lib/server/auth";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const assignable = searchParams.get("assignable") === "true";
+
+  const guard = assignable ? await requireRoles(["ADMIN", "ALIADO"]) : await requireRoles(["ADMIN"]);
+  if (guard.error) return guard.error;
 
   const users = await prisma.user.findMany({
     where: assignable ? { role: { in: ["ADMIN", "GERENTE"] }, active: true } : undefined,
@@ -29,8 +33,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: Request) {
-  const body = await request.json();
+  const { error } = await requireRoles(["ADMIN"]);
+  if (error) return error;
 
+  const body = await request.json();
   if (!body?.email || !body?.name || !body?.password || !body?.role) {
     return NextResponse.json({ error: "Dados obrigatórios ausentes" }, { status: 400 });
   }
