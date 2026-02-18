@@ -101,6 +101,8 @@ export default function LeadDetailPage() {
   // Estado para edição de observações (ALIADO pode adicionar)
   const [editNotes, setEditNotes] = useState("");
   const [notesLoading, setNotesLoading] = useState(false);
+  const [leadEditLoading, setLeadEditLoading] = useState(false);
+  const [leadEditForm, setLeadEditForm] = useState({ urgency: "", necessity: "", source: "" });
 
   const leadId = params?.id as string;
 
@@ -111,6 +113,7 @@ export default function LeadDetailPage() {
         if (response.ok) {
           const data = await response.json();
           setLead(data);
+          setLeadEditForm({ urgency: data?.urgency ?? "", necessity: data?.necessity ?? "", source: data?.source ?? "" });
         } else {
           toast({
             title: "Erro",
@@ -362,6 +365,39 @@ export default function LeadDetailPage() {
     }
   };
 
+
+
+  const handleSaveLeadFields = async () => {
+    setLeadEditLoading(true);
+    try {
+      const response = await fetch(`/api/leads/${leadId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          urgency: leadEditForm.urgency || null,
+          necessity: leadEditForm.necessity || null,
+          source: leadEditForm.source || null,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Erro ao atualizar lead");
+      const data = await response.json();
+      setLead(data);
+      toast({
+        title: "Lead atualizado",
+        description: "Campos de urgência, necessidade e origem atualizados.",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível atualizar os campos do lead",
+        variant: "destructive",
+      });
+    } finally {
+      setLeadEditLoading(false);
+    }
+  };
+
   const openNotesDialog = () => {
     setEditNotes(lead?.notes ?? "");
     setNotesDialogOpen(true);
@@ -389,6 +425,15 @@ export default function LeadDetailPage() {
   const canEditNotes = user?.id === lead.registradorId || user?.role === "ADMIN" || user?.role === "GERENTE";
 
   // Build timeline
+  const auditTrail = (lead?.interactions ?? [])
+    .filter((i: any) => i.type === "NOTA" && typeof i.notes === "string" && i.notes.startsWith("[AUDIT]"))
+    .map((i: any) => ({
+      id: i.id,
+      notes: i.notes.replace("[AUDIT]", "").trim(),
+      author: i.author?.name ?? "Sistema",
+      createdAt: i.createdAt,
+    }));
+
   const timeline = [
     ...((lead.interactions ?? []).map((i: any) => ({
       type: "interaction",
@@ -875,6 +920,65 @@ export default function LeadDetailPage() {
                   <dt className="text-sm text-gray-500">Fonte</dt>
                   <dd className="font-medium">{lead.source ?? "-"}</dd>
                 </div>
+                {(user?.role === "ADMIN" || user?.role === "GERENTE") && (
+                  <div className="sm:col-span-2 border rounded-md p-3 bg-gray-50/60">
+                    <p className="text-sm font-medium mb-3">Edição rápida do Lead (CRM)</p>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div>
+                        <Label className="text-xs">Urgência</Label>
+                        <Select
+                          value={leadEditForm.urgency || "NONE"}
+                          onValueChange={(v) => setLeadEditForm((prev) => ({ ...prev, urgency: v === "NONE" ? "" : v }))}
+                        >
+                          <SelectTrigger className="mt-1">
+                            <SelectValue placeholder="Selecione" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="NONE">Sem urgência</SelectItem>
+                            <SelectItem value="BAIXA">Baixa</SelectItem>
+                            <SelectItem value="MEDIA">Média</SelectItem>
+                            <SelectItem value="ALTA">Alta</SelectItem>
+                            <SelectItem value="IMEDIATA">Imediata</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Necessidade</Label>
+                        <Select
+                          value={leadEditForm.necessity || "NONE"}
+                          onValueChange={(v) => setLeadEditForm((prev) => ({ ...prev, necessity: v === "NONE" ? "" : v }))}
+                        >
+                          <SelectTrigger className="mt-1">
+                            <SelectValue placeholder="Selecione" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="NONE">Sem necessidade</SelectItem>
+                            {NECESSITIES.map((item) => (
+                              <SelectItem key={item.value} value={item.value}>
+                                {item.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Origem</Label>
+                        <Input
+                          value={leadEditForm.source}
+                          onChange={(e) => setLeadEditForm((prev) => ({ ...prev, source: e.target.value }))}
+                          placeholder="Ex: Site, parceiro, evento"
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-3">
+                      <Button size="sm" onClick={handleSaveLeadFields} disabled={leadEditLoading}>
+                        {leadEditLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Salvar edição do lead
+                      </Button>
+                    </div>
+                  </div>
+                )}
                 <div>
                   <dt className="text-sm text-gray-500">Registrador</dt>
                   <dd className="font-medium">{lead.registrador?.name ?? "-"}</dd>
@@ -1004,6 +1108,31 @@ export default function LeadDetailPage() {
                       );
                     }
                   })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Trilha de Auditoria de Campos</CardTitle>
+              <CardDescription>
+                {auditTrail.length} {auditTrail.length === 1 ? "alteração registrada" : "alterações registradas"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {auditTrail.length === 0 ? (
+                <p className="text-sm text-gray-500">Nenhuma alteração de campo registrada.</p>
+              ) : (
+                <div className="space-y-3">
+                  {auditTrail.map((item: any) => (
+                    <div key={item.id} className="rounded-md border p-3 bg-gray-50">
+                      <p className="text-xs text-gray-500 mb-1">
+                        {item.author} • {format(new Date(item.createdAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                      </p>
+                      <pre className="text-xs whitespace-pre-wrap font-sans text-gray-700">{item.notes}</pre>
+                    </div>
+                  ))}
                 </div>
               )}
             </CardContent>
