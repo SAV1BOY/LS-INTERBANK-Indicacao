@@ -1,0 +1,239 @@
+generator client {
+    provider = "prisma-client-js"
+    binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
+    output = "/home/ubuntu/ls_indicacao/nextjs_space/node_modules/.prisma/client"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  GERENTE
+  ALIADO
+}
+
+enum LeadStatus {
+  PENDENTE
+  ATRIBUIDA
+  EM_CONTATO
+  QUALIFICADA
+  ENCERRADA
+  INATIVO
+}
+
+enum InteractionType {
+  LIGACAO
+  WHATSAPP
+  EMAIL
+  REUNIAO
+  NOTA
+}
+
+enum InteractionResult {
+  SEM_RESPOSTA
+  CAIXA_POSTAL
+  OCUPADO
+  CONTATO_REALIZADO
+  CONTATO_SUCESSO
+}
+
+enum CloseReason {
+  // Motivos de GANHO
+  VENDA_REALIZADA
+  // Motivos de PERDA
+  SEM_INTERESSE
+  SEM_FIT
+  SEM_CONTATO
+  JA_CLIENTE
+  CONCORRENTE
+  // Motivos de INATIVO (reciclável)
+  TIMING
+  DUPLICADA
+  SEM_CONSENTIMENTO
+  DADOS_INCORRETOS
+  NAO_ATENDE_TELEFONE
+  OUTRO
+}
+
+enum Urgency {
+  BAIXA
+  MEDIA
+  ALTA
+  IMEDIATA
+}
+
+enum CompanySize {
+  MICRO
+  PEQUENA
+  MEDIA
+  GRANDE
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String
+  passwordHash  String
+  role          UserRole  @default(ALIADO)
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastLoginAt   DateTime?
+
+  leadsRegistered   Lead[]        @relation("LeadRegistrador")
+  leadsResponsible  Lead[]        @relation("LeadResponsavel")
+  interactions      Interaction[]
+  statusChanges     StatusHistory[] @relation("StatusChangedBy")
+  assignments       Assignment[]    @relation("AssignedBy")
+  assignmentsReceived Assignment[]  @relation("AssignedTo")
+
+  @@index([email])
+  @@index([role])
+}
+
+model Company {
+  id            String      @id @default(cuid())
+  cnpj          String      @unique
+  razaoSocial   String
+  nomeFantasia  String?
+  city          String?
+  state         String?
+  segment       String?
+  size          CompanySize?
+  website       String?
+  consentimento Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  createdById   String?
+
+  contacts      Contact[]
+  leads         Lead[]
+
+  @@index([cnpj])
+  @@index([state])
+  @@index([segment])
+}
+
+model Contact {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name        String
+  email       String?
+  phone       String?
+  whatsapp    String?
+  position    String?
+  isPrimary   Boolean  @default(false)
+  consentimento Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  leads       Lead[]
+
+  @@index([companyId])
+  @@index([email])
+  @@index([phone])
+}
+
+model Lead {
+  id              String      @id @default(cuid())
+  companyId       String
+  company         Company     @relation(fields: [companyId], references: [id])
+  contactId       String?
+  contact         Contact?    @relation(fields: [contactId], references: [id])
+  registradorId   String
+  registrador     User        @relation("LeadRegistrador", fields: [registradorId], references: [id])
+  responsavelId   String?
+  responsavel     User?       @relation("LeadResponsavel", fields: [responsavelId], references: [id])
+  status          LeadStatus  @default(PENDENTE)
+  closeReason     CloseReason?
+  closeReasonDetail String?
+  source          String?
+  necessity       String?
+  urgency         Urgency?
+  notes           String?
+  leadScore       Int         @default(0)
+  imageUrl        String?     // Imagem anexada pelo Aliado
+  isProspeccao    Boolean     @default(false) // Prospecção própria do Gerente
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  assignedAt      DateTime?
+  firstContactAt  DateTime?
+  qualifiedAt     DateTime?
+  closedAt        DateTime?
+
+  interactions    Interaction[]
+  statusHistory   StatusHistory[]
+  assignments     Assignment[]
+
+  @@index([companyId])
+  @@index([status])
+  @@index([responsavelId])
+  @@index([registradorId])
+  @@index([createdAt])
+  @@index([isProspeccao])
+}
+
+model Interaction {
+  id            String            @id @default(cuid())
+  leadId        String
+  lead          Lead              @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  authorId      String
+  author        User              @relation(fields: [authorId], references: [id])
+  type          InteractionType
+  result        InteractionResult?
+  notes         String?
+  nextStep      String?
+  nextStepDate  DateTime?
+  durationMinutes Int?
+  occurredAt    DateTime          @default(now())
+  createdAt     DateTime          @default(now())
+
+  @@index([leadId])
+  @@index([authorId])
+  @@index([occurredAt])
+  @@index([nextStepDate])
+}
+
+model StatusHistory {
+  id            String      @id @default(cuid())
+  leadId        String
+  lead          Lead        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  previousStatus LeadStatus?
+  newStatus     LeadStatus
+  reason        String?
+  changedById   String
+  changedBy     User        @relation("StatusChangedBy", fields: [changedById], references: [id])
+  changedAt     DateTime    @default(now())
+
+  @@index([leadId])
+  @@index([changedAt])
+}
+
+model Assignment {
+  id            String   @id @default(cuid())
+  leadId        String
+  lead          Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  assignedToId  String
+  assignedTo    User     @relation("AssignedTo", fields: [assignedToId], references: [id])
+  assignedById  String
+  assignedBy    User     @relation("AssignedBy", fields: [assignedById], references: [id])
+  assignedAt    DateTime @default(now())
+  notes         String?
+
+  @@index([leadId])
+  @@index([assignedToId])
+  @@index([assignedAt])
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
