@@ -101,6 +101,8 @@ export default function LeadDetailPage() {
   // Estado para edição de observações (ALIADO pode adicionar)
   const [editNotes, setEditNotes] = useState("");
   const [notesLoading, setNotesLoading] = useState(false);
+  const [leadEditLoading, setLeadEditLoading] = useState(false);
+  const [leadEditForm, setLeadEditForm] = useState({ urgency: "", necessity: "", source: "" });
 
   const leadId = params?.id as string;
 
@@ -111,6 +113,7 @@ export default function LeadDetailPage() {
         if (response.ok) {
           const data = await response.json();
           setLead(data);
+          setLeadEditForm({ urgency: data?.urgency ?? "", necessity: data?.necessity ?? "", source: data?.source ?? "" });
         } else {
           toast({
             title: "Erro",
@@ -359,6 +362,39 @@ export default function LeadDetailPage() {
       });
     } finally {
       setNotesLoading(false);
+    }
+  };
+
+
+
+  const handleSaveLeadFields = async () => {
+    setLeadEditLoading(true);
+    try {
+      const response = await fetch(`/api/leads/${leadId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          urgency: leadEditForm.urgency || null,
+          necessity: leadEditForm.necessity || null,
+          source: leadEditForm.source || null,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Erro ao atualizar lead");
+      const data = await response.json();
+      setLead(data);
+      toast({
+        title: "Lead atualizado",
+        description: "Campos de urgência, necessidade e origem atualizados.",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível atualizar os campos do lead",
+        variant: "destructive",
+      });
+    } finally {
+      setLeadEditLoading(false);
     }
   };
 
@@ -875,6 +911,65 @@ export default function LeadDetailPage() {
                   <dt className="text-sm text-gray-500">Fonte</dt>
                   <dd className="font-medium">{lead.source ?? "-"}</dd>
                 </div>
+                {(user?.role === "ADMIN" || user?.role === "GERENTE") && (
+                  <div className="sm:col-span-2 border rounded-md p-3 bg-gray-50/60">
+                    <p className="text-sm font-medium mb-3">Edição rápida do Lead (CRM)</p>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div>
+                        <Label className="text-xs">Urgência</Label>
+                        <Select
+                          value={leadEditForm.urgency || "NONE"}
+                          onValueChange={(v) => setLeadEditForm((prev) => ({ ...prev, urgency: v === "NONE" ? "" : v }))}
+                        >
+                          <SelectTrigger className="mt-1">
+                            <SelectValue placeholder="Selecione" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="NONE">Sem urgência</SelectItem>
+                            <SelectItem value="BAIXA">Baixa</SelectItem>
+                            <SelectItem value="MEDIA">Média</SelectItem>
+                            <SelectItem value="ALTA">Alta</SelectItem>
+                            <SelectItem value="IMEDIATA">Imediata</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Necessidade</Label>
+                        <Select
+                          value={leadEditForm.necessity || "NONE"}
+                          onValueChange={(v) => setLeadEditForm((prev) => ({ ...prev, necessity: v === "NONE" ? "" : v }))}
+                        >
+                          <SelectTrigger className="mt-1">
+                            <SelectValue placeholder="Selecione" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="NONE">Sem necessidade</SelectItem>
+                            {NECESSITIES.map((item) => (
+                              <SelectItem key={item.value} value={item.value}>
+                                {item.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Origem</Label>
+                        <Input
+                          value={leadEditForm.source}
+                          onChange={(e) => setLeadEditForm((prev) => ({ ...prev, source: e.target.value }))}
+                          placeholder="Ex: Site, parceiro, evento"
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-3">
+                      <Button size="sm" onClick={handleSaveLeadFields} disabled={leadEditLoading}>
+                        {leadEditLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Salvar edição do lead
+                      </Button>
+                    </div>
+                  </div>
+                )}
                 <div>
                   <dt className="text-sm text-gray-500">Registrador</dt>
                   <dd className="font-medium">{lead.registrador?.name ?? "-"}</dd>
