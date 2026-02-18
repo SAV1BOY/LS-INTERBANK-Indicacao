@@ -12,11 +12,9 @@ import {
   Target, 
   CheckCircle2, 
   Clock, 
-  XCircle,
   Loader2,
   Download
 } from "lucide-react";
-import { hasPermission } from "@/lib/permissions";
 import { STATUS_LABELS } from "@/lib/utils/status";
 
 interface PerformanceData {
@@ -69,13 +67,9 @@ export default function RelatoriosPage() {
         if (statsRes.ok) {
           const statsData = await statsRes.json();
           setStats({
-            totalLeads: statsData.leadsCreated ?? 0,
+            totalLeads: statsData.totalLeads ?? 0,
             statusCounts: statsData.statusCounts ?? {},
-            periodComparison: {
-              current: statsData.leadsCreated ?? 0,
-              previous: Math.floor((statsData.leadsCreated ?? 0) * 0.85),
-              change: 15,
-            },
+            periodComparison: statsData.periodComparison ?? { current: 0, previous: 0, change: 0 },
           });
         }
       } catch (error) {
@@ -87,6 +81,25 @@ export default function RelatoriosPage() {
 
     fetchData();
   }, [isAdmin]);
+
+
+  const handleExport = async () => {
+    try {
+      const response = await fetch("/api/reports/export");
+      if (!response.ok) throw new Error();
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `relatorio-leads-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Erro ao exportar relatório", error);
+    }
+  };
 
   if (loading) {
     return (
@@ -109,6 +122,10 @@ export default function RelatoriosPage() {
           <h1 className="text-2xl font-bold text-gray-900">Relatórios</h1>
           <p className="text-gray-600 mt-1">Visualize métricas e KPIs da operação</p>
         </div>
+        <Button onClick={handleExport} variant="outline">
+          <Download className="mr-2 h-4 w-4" />
+          Exportar CSV
+        </Button>
       </div>
 
       {/* Cards de Resumo */}
