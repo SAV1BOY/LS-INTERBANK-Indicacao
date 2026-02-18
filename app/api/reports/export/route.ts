@@ -19,7 +19,7 @@ const headers = [
 ];
 
 function csvEscape(value: unknown) {
-  const text = String(value ?? "").replaceAll('"', '""');
+  const text = String(value ?? "").split('"').join('""');
   return `"${text}"`;
 }
 
