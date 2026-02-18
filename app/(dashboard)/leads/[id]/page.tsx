@@ -425,6 +425,15 @@ export default function LeadDetailPage() {
   const canEditNotes = user?.id === lead.registradorId || user?.role === "ADMIN" || user?.role === "GERENTE";
 
   // Build timeline
+  const auditTrail = (lead?.interactions ?? [])
+    .filter((i: any) => i.type === "NOTA" && typeof i.notes === "string" && i.notes.startsWith("[AUDIT]"))
+    .map((i: any) => ({
+      id: i.id,
+      notes: i.notes.replace("[AUDIT]", "").trim(),
+      author: i.author?.name ?? "Sistema",
+      createdAt: i.createdAt,
+    }));
+
   const timeline = [
     ...((lead.interactions ?? []).map((i: any) => ({
       type: "interaction",
@@ -1099,6 +1108,31 @@ export default function LeadDetailPage() {
                       );
                     }
                   })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Trilha de Auditoria de Campos</CardTitle>
+              <CardDescription>
+                {auditTrail.length} {auditTrail.length === 1 ? "alteração registrada" : "alterações registradas"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {auditTrail.length === 0 ? (
+                <p className="text-sm text-gray-500">Nenhuma alteração de campo registrada.</p>
+              ) : (
+                <div className="space-y-3">
+                  {auditTrail.map((item: any) => (
+                    <div key={item.id} className="rounded-md border p-3 bg-gray-50">
+                      <p className="text-xs text-gray-500 mb-1">
+                        {item.author} • {format(new Date(item.createdAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                      </p>
+                      <pre className="text-xs whitespace-pre-wrap font-sans text-gray-700">{item.notes}</pre>
+                    </div>
+                  ))}
                 </div>
               )}
             </CardContent>

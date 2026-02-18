@@ -9,6 +9,18 @@ type Params = { params: { id: string } };
 
 export const dynamic = "force-dynamic";
 
+function normalize(v: unknown) {
+  if (v === undefined) return undefined;
+  if (v === null) return null;
+  if (typeof v === "string") return v.trim() || null;
+  return v;
+}
+
+function toAuditLines(changes: Array<{ field: string; from: unknown; to: unknown }>) {
+  if (!changes.length) return "";
+  return changes.map((c) => `• ${c.field}: "${String(c.from ?? "-")}" -> "${String(c.to ?? "-")}"`).join("\n");
+}
+
 export async function GET(_: Request, { params }: Params) {
   const { user, error } = await requireUser();
   if (error || !user) return error;
@@ -27,12 +39,16 @@ export async function PUT(request: Request, { params }: Params) {
   const { user, error } = await requireUser();
   if (error || !user) return error;
 
-  const existing = await prisma.lead.findUnique({ where: { id: params.id } });
+  const existing = await prisma.lead.findUnique({
+    where: { id: params.id },
+    include: { company: true, contact: true },
+  });
   if (!existing) return NextResponse.json({ error: "Lead não encontrado" }, { status: 404 });
 
   const body = await request.json();
   const validationError = validateLeadUpdatePayload(body);
   if (validationError) return NextResponse.json({ error: validationError }, { status: 400 });
+
   const isOwner = existing.registradorId === user.id;
   const isManager = user.role === "ADMIN" || user.role === "GERENTE";
 
@@ -51,40 +67,77 @@ export async function PUT(request: Request, { params }: Params) {
     data.notes = body.notes ?? undefined;
   }
 
+  const leadChanges: Array<{ field: string; from: unknown; to: unknown }> = [];
+  const collectLeadChange = (field: string, next: unknown, current: unknown) => {
+    if (next === undefined) return;
+    if (normalize(next) !== normalize(current)) {
+      leadChanges.push({ field, from: current, to: next });
+    }
+  };
+
+  collectLeadChange("necessity", data.necessity, existing.necessity);
+  collectLeadChange("urgency", data.urgency, existing.urgency);
+  collectLeadChange("source", data.source, existing.source);
+  collectLeadChange("notes", data.notes, existing.notes);
+
   const lead = await prisma.lead.update({ where: { id: params.id }, data, include: leadInclude });
+
+  const companyChanges: Array<{ field: string; from: unknown; to: unknown }> = [];
+  const contactChanges: Array<{ field: string; from: unknown; to: unknown }> = [];
 
   if ((body?.company || body?.contact) && isManager) {
     if (body.company) {
-      await prisma.company.update({
-        where: { id: lead.companyId },
-        data: {
-          razaoSocial: body.company.razaoSocial ?? undefined,
-          nomeFantasia: body.company.nomeFantasia ?? undefined,
-          city: body.company.city ?? undefined,
-          state: body.company.state ?? undefined,
-          segment: body.company.segment ?? undefined,
-          size: body.company.size ?? undefined,
-          website: body.company.website ?? undefined,
-        },
+      const companyData: any = {
+        razaoSocial: body.company.razaoSocial ?? undefined,
+        nomeFantasia: body.company.nomeFantasia ?? undefined,
+        city: body.company.city ?? undefined,
+        state: body.company.state ?? undefined,
+        segment: body.company.segment ?? undefined,
+        size: body.company.size ?? undefined,
+        website: body.company.website ?? undefined,
+      };
+
+      Object.entries(companyData).forEach(([k, v]) => {
+        if (v !== undefined && normalize(v) !== normalize((existing.company as any)?.[k])) {
+          companyChanges.push({ field: `company.${k}`, from: (existing.company as any)?.[k], to: v });
+        }
       });
+
+      await prisma.company.update({ where: { id: lead.companyId }, data: companyData });
     }
 
     if (body.contact && lead.contactId) {
-      await prisma.contact.update({
-        where: { id: lead.contactId },
-        data: {
-          name: body.contact.name ?? undefined,
-          email: body.contact.email ?? undefined,
-          phone: body.contact.phone ? String(body.contact.phone).replace(/\D/g, "") : undefined,
-          whatsapp: body.contact.whatsapp ? String(body.contact.whatsapp).replace(/\D/g, "") : undefined,
-          position: body.contact.position ?? undefined,
-        },
-      });
-    }
+      const contactData: any = {
+        name: body.contact.name ?? undefined,
+        email: body.contact.email ?? undefined,
+        phone: body.contact.phone ? String(body.contact.phone).replace(/\D/g, "") : undefined,
+        whatsapp: body.contact.whatsapp ? String(body.contact.whatsapp).replace(/\D/g, "") : undefined,
+        position: body.contact.position ?? undefined,
+      };
 
-    const refreshed = await prisma.lead.findUnique({ where: { id: params.id }, include: leadInclude });
-    return NextResponse.json(refreshed);
+      Object.entries(contactData).forEach(([k, v]) => {
+        if (v !== undefined && normalize(v) !== normalize((existing.contact as any)?.[k])) {
+          contactChanges.push({ field: `contact.${k}`, from: (existing.contact as any)?.[k], to: v });
+        }
+      });
+
+      await prisma.contact.update({ where: { id: lead.contactId }, data: contactData });
+    }
   }
 
-  return NextResponse.json(lead);
+  const allChanges = [...leadChanges, ...companyChanges, ...contactChanges];
+
+  if (allChanges.length > 0) {
+    await prisma.interaction.create({
+      data: {
+        leadId: params.id,
+        authorId: user.id,
+        type: "NOTA",
+        notes: `[AUDIT] Alterações de campos\n${toAuditLines(allChanges)}`,
+      },
+    });
+  }
+
+  const refreshed = await prisma.lead.findUnique({ where: { id: params.id }, include: leadInclude });
+  return NextResponse.json(refreshed);
 }
