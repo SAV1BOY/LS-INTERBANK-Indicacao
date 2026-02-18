@@ -1,0 +1,76 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
+import { requireRoles } from "@/lib/server/auth";
+import { canAccessLead } from "@/lib/permissions";
+import { validateInteractionPayload } from "@/lib/server/validators";
+
+type Params = { params: { id: string } };
+
+export async function POST(request: Request, { params }: Params) {
+  const { user, error } = await requireRoles(["ADMIN", "GERENTE"]);
+  if (error || !user) return error;
+
+  const body = await request.json();
+  const validationError = validateInteractionPayload(body);
+  if (validationError) return NextResponse.json({ error: validationError }, { status: 400 });
+
+  const lead = await prisma.lead.findUnique({ where: { id: params.id } });
+  if (!lead) return NextResponse.json({ error: "Lead não encontrado" }, { status: 404 });
+  if (!canAccessLead(user.role, user.id, lead)) {
+    return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+  }
+
+  const interaction = await prisma.interaction.create({
+    data: {
+      leadId: params.id,
+      authorId: user.id,
+      type: body.type,
+      result: body.result || null,
+      notes: body.notes || null,
+      nextStep: body.nextStep || null,
+      nextStepDate: body.nextStepDate ? new Date(body.nextStepDate) : null,
+      durationMinutes: body.durationMinutes ? Number(body.durationMinutes) : null,
+      occurredAt: body.occurredAt ? new Date(body.occurredAt) : new Date(),
+    },
+    include: {
+      author: { select: { id: true, name: true, email: true, role: true } },
+    },
+  });
+
+  return NextResponse.json(interaction, { status: 201 });
+}
+
+export async function PUT(request: Request, { params }: Params) {
+  const { user, error } = await requireRoles(["ADMIN", "GERENTE"]);
+  if (error || !user) return error;
+
+  const body = await request.json();
+  const validationError = validateInteractionPayload(body, true);
+  if (validationError) return NextResponse.json({ error: validationError }, { status: 400 });
+
+  const existing = await prisma.interaction.findFirst({ where: { id: body.interactionId, leadId: params.id } });
+  if (!existing) return NextResponse.json({ error: "Interação não encontrada" }, { status: 404 });
+
+  const lead = await prisma.lead.findUnique({ where: { id: params.id } });
+  if (!lead) return NextResponse.json({ error: "Lead não encontrado" }, { status: 404 });
+  if (!canAccessLead(user.role, user.id, lead)) {
+    return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+  }
+
+  const interaction = await prisma.interaction.update({
+    where: { id: body.interactionId },
+    data: {
+      type: body.type ?? existing.type,
+      result: body.result ?? existing.result,
+      notes: body.notes ?? existing.notes,
+      nextStep: body.nextStep ?? existing.nextStep,
+      nextStepDate: body.nextStepDate ? new Date(body.nextStepDate) : existing.nextStepDate,
+      durationMinutes: body.durationMinutes ? Number(body.durationMinutes) : existing.durationMinutes,
+    },
+    include: {
+      author: { select: { id: true, name: true, email: true, role: true } },
+    },
+  });
+
+  return NextResponse.json(interaction);
+}
