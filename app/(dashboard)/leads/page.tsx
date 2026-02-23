@@ -140,6 +140,8 @@ export default function LeadsPage() {
     }, {} as Record<LeadStatus, Lead[]>);
   }, [filteredLeads]);
 
+  const canEditLeadFields = userRole === "ADMIN" || userRole === "GERENTE";
+
   const updateLeadFields = async (leadId: string, data: Partial<Lead>) => {
     setSavingLeadId(leadId);
     try {
@@ -148,12 +150,15 @@ export default function LeadsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      if (!response.ok) throw new Error();
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err?.error ?? "Sem permissão ou erro ao atualizar");
+      }
       const updated = await response.json();
       setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...updated } : l)));
       toast({ title: "Lead atualizado", description: "Urgência/necessidade atualizadas com sucesso." });
-    } catch {
-      toast({ title: "Erro", description: "Não foi possível atualizar o lead.", variant: "destructive" });
+    } catch (error: any) {
+      toast({ title: "Erro", description: error?.message ?? "Não foi possível atualizar o lead.", variant: "destructive" });
     } finally {
       setSavingLeadId(null);
     }
@@ -380,7 +385,7 @@ export default function LeadsPage() {
                         <td className="py-4 px-4"><div className="flex flex-col gap-1"><LeadStatusBadge status={lead.status} /><UrgencyBadge urgency={lead.urgency as any} /></div></td>
                         <td className="py-4 px-4">{lead.responsavel?.name ?? "Sem responsável"}</td>
                         <td className="py-4 px-4">{lead._count?.interactions ?? 0}</td>
-                        <td className="py-4 px-4">{renderQuickEdit(lead)}</td>
+                        <td className="py-4 px-4">{canEditLeadFields ? renderQuickEdit(lead) : <span className="text-xs text-gray-400">-</span>}</td>
                         <td className="py-4 px-4">
                           <p>{lead.createdAt ? format(new Date(lead.createdAt), "dd/MM/yyyy", { locale: ptBR }) : "-"}</p>
                           <p className="text-sm text-gray-500">{lead.createdAt ? formatDistanceToNow(new Date(lead.createdAt), { addSuffix: true, locale: ptBR }) : ""}</p>
@@ -432,7 +437,7 @@ export default function LeadsPage() {
                         <p className="text-xs font-semibold text-gray-900 truncate">{lead.company.razaoSocial}</p>
                         <p className="text-[11px] text-gray-500 truncate">{lead.contact?.name ?? "Sem contato"}</p>
                         <p className="text-[11px] text-gray-500">Interações: {lead._count?.interactions ?? 0}</p>
-                        <div className="mt-2">{renderQuickEdit(lead)}</div>
+                        {canEditLeadFields && <div className="mt-2">{renderQuickEdit(lead)}</div>}
                         <div className="mt-2 flex justify-end"><Link href={`/leads/${lead.id}`} className="text-xs text-blue-600">Abrir</Link></div>
                       </div>
                     ))}

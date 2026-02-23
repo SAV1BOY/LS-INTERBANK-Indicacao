@@ -58,13 +58,13 @@ export async function PUT(request: Request, { params }: Params) {
 
   const data: any = {};
   if (isManager) {
-    data.necessity = body.necessity ?? undefined;
-    data.urgency = body.urgency ?? undefined;
-    data.source = body.source ?? undefined;
-    data.closeReasonDetail = body.closeReasonDetail ?? undefined;
+    if (body.necessity !== undefined) data.necessity = body.necessity;
+    if (body.urgency !== undefined) data.urgency = body.urgency;
+    if (body.source !== undefined) data.source = body.source;
+    if (body.closeReasonDetail !== undefined) data.closeReasonDetail = body.closeReasonDetail;
   }
   if (isOwner || isManager) {
-    data.notes = body.notes ?? undefined;
+    if (body.notes !== undefined) data.notes = body.notes;
   }
 
   const leadChanges: Array<{ field: string; from: unknown; to: unknown }> = [];
@@ -87,15 +87,10 @@ export async function PUT(request: Request, { params }: Params) {
 
   if ((body?.company || body?.contact) && isManager) {
     if (body.company) {
-      const companyData: any = {
-        razaoSocial: body.company.razaoSocial ?? undefined,
-        nomeFantasia: body.company.nomeFantasia ?? undefined,
-        city: body.company.city ?? undefined,
-        state: body.company.state ?? undefined,
-        segment: body.company.segment ?? undefined,
-        size: body.company.size ?? undefined,
-        website: body.company.website ?? undefined,
-      };
+      const companyData: any = {};
+      for (const k of ["razaoSocial", "nomeFantasia", "city", "state", "segment", "size", "website"] as const) {
+        if (body.company[k] !== undefined) companyData[k] = body.company[k];
+      }
 
       Object.entries(companyData).forEach(([k, v]) => {
         if (v !== undefined && normalize(v) !== normalize((existing.company as any)?.[k])) {
@@ -107,13 +102,12 @@ export async function PUT(request: Request, { params }: Params) {
     }
 
     if (body.contact && lead.contactId) {
-      const contactData: any = {
-        name: body.contact.name ?? undefined,
-        email: body.contact.email ?? undefined,
-        phone: body.contact.phone ? String(body.contact.phone).replace(/\D/g, "") : undefined,
-        whatsapp: body.contact.whatsapp ? String(body.contact.whatsapp).replace(/\D/g, "") : undefined,
-        position: body.contact.position ?? undefined,
-      };
+      const contactData: any = {};
+      if (body.contact.name !== undefined) contactData.name = body.contact.name;
+      if (body.contact.email !== undefined) contactData.email = body.contact.email;
+      if (body.contact.phone !== undefined) contactData.phone = body.contact.phone ? String(body.contact.phone).replace(/\D/g, "") : null;
+      if (body.contact.whatsapp !== undefined) contactData.whatsapp = body.contact.whatsapp ? String(body.contact.whatsapp).replace(/\D/g, "") : null;
+      if (body.contact.position !== undefined) contactData.position = body.contact.position;
 
       Object.entries(contactData).forEach(([k, v]) => {
         if (v !== undefined && normalize(v) !== normalize((existing.contact as any)?.[k])) {

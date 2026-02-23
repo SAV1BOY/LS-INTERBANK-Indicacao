@@ -380,9 +380,17 @@ export default function LeadDetailPage() {
         }),
       });
 
-      if (!response.ok) throw new Error("Erro ao atualizar lead");
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err?.error ?? "Erro ao atualizar lead");
+      }
       const data = await response.json();
       setLead(data);
+      setLeadEditForm({
+        urgency: data?.urgency ?? "",
+        necessity: data?.necessity ?? "",
+        source: data?.source ?? "",
+      });
       toast({
         title: "Lead atualizado",
         description: "Campos de urgência, necessidade e origem atualizados.",
