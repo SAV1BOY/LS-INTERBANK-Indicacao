@@ -1,19 +1,35 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Suspense } from "react";
 
-export default function LoginPage() {
+const ERROR_MESSAGES: Record<string, string> = {
+  Configuration: "Erro de configuração do servidor. Contate o administrador.",
+  AccessDenied: "Acesso negado.",
+  Verification: "O link de verificação expirou.",
+  Default: "Erro ao autenticar. Tente novamente.",
+};
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const errorParam = searchParams.get("error");
+    if (errorParam) {
+      setError(ERROR_MESSAGES[errorParam] ?? ERROR_MESSAGES.Default);
+    }
+  }, [searchParams]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -41,6 +57,48 @@ export default function LoginPage() {
   }
 
   return (
+    <div className="rounded-lg border bg-white p-6 shadow-sm">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            type="email"
+            placeholder="seu@email.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="password">Senha</Label>
+          <Input
+            id="password"
+            type="password"
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+        </div>
+
+        {error && (
+          <div className="rounded-md bg-red-50 p-3">
+            <p className="text-sm text-red-700">{error}</p>
+          </div>
+        )}
+
+        <Button type="submit" className="w-full" disabled={loading}>
+          {loading ? "Entrando..." : "Entrar"}
+        </Button>
+      </form>
+    </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="flex flex-col items-center space-y-2">
@@ -58,41 +116,17 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <div className="rounded-lg border bg-white p-6 shadow-sm">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="seu@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
+        <Suspense fallback={
+          <div className="rounded-lg border bg-white p-6 shadow-sm">
+            <div className="animate-pulse space-y-4">
+              <div className="h-10 bg-gray-200 rounded" />
+              <div className="h-10 bg-gray-200 rounded" />
+              <div className="h-10 bg-gray-200 rounded" />
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password">Senha</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-
-            {error && (
-              <p className="text-sm text-red-600">{error}</p>
-            )}
-
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Entrando..." : "Entrar"}
-            </Button>
-          </form>
-        </div>
+          </div>
+        }>
+          <LoginForm />
+        </Suspense>
       </div>
     </div>
   );
