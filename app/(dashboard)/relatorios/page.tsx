@@ -83,15 +83,15 @@ export default function RelatoriosPage() {
   }, [isAdmin]);
 
 
-  const handleExport = async () => {
+  const handleExport = async (format: "csv" | "xlsx" = "csv") => {
     try {
-      const response = await fetch("/api/reports/export");
+      const response = await fetch(`/api/reports/export?format=${format}`);
       if (!response.ok) throw new Error();
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `relatorio-leads-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = `relatorio-leads-${new Date().toISOString().slice(0, 10)}.${format}`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -122,10 +122,16 @@ export default function RelatoriosPage() {
           <h1 className="text-2xl font-bold text-gray-900">Relatórios</h1>
           <p className="text-gray-600 mt-1">Visualize métricas e KPIs da operação</p>
         </div>
-        <Button onClick={handleExport} variant="outline">
-          <Download className="mr-2 h-4 w-4" />
-          Exportar CSV
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => handleExport("xlsx")} variant="default">
+            <Download className="mr-2 h-4 w-4" />
+            Exportar Excel
+          </Button>
+          <Button onClick={() => handleExport("csv")} variant="outline">
+            <Download className="mr-2 h-4 w-4" />
+            Exportar CSV
+          </Button>
+        </div>
       </div>
 
       {/* Cards de Resumo */}

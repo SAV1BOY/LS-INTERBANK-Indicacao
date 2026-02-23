@@ -17,8 +17,9 @@ export async function POST(request: Request, { params }: Params) {
   const current = await prisma.lead.findUnique({ where: { id: params.id } });
   if (!current) return NextResponse.json({ error: "Lead não encontrado" }, { status: 404 });
 
-  if (user.role === "ALIADO" && current.registradorId !== user.id) {
-    return NextResponse.json({ error: "Aliado só pode atribuir os próprios leads" }, { status: 403 });
+  // Admin e Aliado só podem atribuir leads que eles mesmos criaram
+  if (current.registradorId !== user.id) {
+    return NextResponse.json({ error: "Você só pode atribuir leads que você criou" }, { status: 403 });
   }
 
   await prisma.lead.update({

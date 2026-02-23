@@ -14,6 +14,7 @@ import {
   PlusCircle,
   List,
   BarChart3,
+  BookOpen,
 } from "lucide-react";
 
 type NavItem = {
@@ -68,6 +69,12 @@ const navigation: NavItem[] = [
     href: "/configuracoes",
     icon: Settings,
     permission: "config:read",
+  },
+  {
+    name: "Manual",
+    href: "/manual",
+    icon: BookOpen,
+    permission: "dashboard:personal",
   },
 ];
 

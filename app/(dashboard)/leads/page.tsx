@@ -51,7 +51,8 @@ interface Lead {
   _count: { interactions: number };
 }
 
-const KANBAN_ORDER: LeadStatus[] = ["PENDENTE", "ATRIBUIDA", "EM_CONTATO", "QUALIFICADA", "ENCERRADA", "INATIVO"];
+const KANBAN_ORDER_ALL: LeadStatus[] = ["PENDENTE", "ATRIBUIDA", "EM_CONTATO", "QUALIFICADA", "ENCERRADA", "INATIVO"];
+const KANBAN_ORDER_GERENTE: LeadStatus[] = ["ATRIBUIDA", "EM_CONTATO", "QUALIFICADA", "ENCERRADA", "INATIVO"];
 const WIP_LIMITS: Partial<Record<LeadStatus, number>> = {
   PENDENTE: 40,
   ATRIBUIDA: 30,
@@ -84,6 +85,8 @@ export default function LeadsPage() {
 
   const canCreateIndication = hasPermission(userRole, "lead:create");
   const canChangeStatus = hasPermission(userRole, "lead:change_status");
+  const isGerente = userRole === "GERENTE";
+  const KANBAN_ORDER = isGerente ? KANBAN_ORDER_GERENTE : KANBAN_ORDER_ALL;
 
   useEffect(() => {
     const fetchLeads = async () => {
@@ -285,7 +288,9 @@ export default function LeadsPage() {
               <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Status" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os status</SelectItem>
-                {Object.entries(STATUS_LABELS).map(([value, label]) => (<SelectItem key={value} value={value}>{label}</SelectItem>))}
+                {Object.entries(STATUS_LABELS)
+                  .filter(([value]) => !isGerente || value !== "PENDENTE")
+                  .map(([value, label]) => (<SelectItem key={value} value={value}>{label}</SelectItem>))}
               </SelectContent>
             </Select>
           </div>
