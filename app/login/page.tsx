@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Suspense } from "react";
 
 const ERROR_MESSAGES: Record<string, string> = {
-  Configuration: "Erro de configuração do servidor. Verifique as variáveis de ambiente (NEXTAUTH_SECRET, DATABASE_URL).",
+  Configuration: "Erro de configuração do servidor. Contate o administrador.",
   AccessDenied: "Acesso negado.",
   Verification: "O link de verificação expirou.",
   Default: "Erro ao autenticar. Tente novamente.",
