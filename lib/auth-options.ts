@@ -16,34 +16,46 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Credenciais inválidas");
         }
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
-        });
+        try {
+          const user = await prisma.user.findUnique({
+            where: { email: credentials.email },
+          });
 
-        if (!user || !user.active) {
-          throw new Error("Usuário não encontrado ou inativo");
+          if (!user || !user.active) {
+            throw new Error("Usuário não encontrado ou inativo");
+          }
+
+          const isPasswordValid = await bcrypt.compare(
+            credentials.password,
+            user.passwordHash
+          );
+
+          if (!isPasswordValid) {
+            throw new Error("Senha incorreta");
+          }
+
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { lastLoginAt: new Date() },
+          });
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+          };
+        } catch (error) {
+          if (error instanceof Error && (
+            error.message.includes("não encontrado") ||
+            error.message.includes("Senha incorreta") ||
+            error.message.includes("inválidas")
+          )) {
+            throw error;
+          }
+          console.error("Erro de autenticação:", error);
+          throw new Error("Erro ao conectar com o banco de dados. Verifique a configuração.");
         }
-
-        const isPasswordValid = await bcrypt.compare(
-          credentials.password,
-          user.passwordHash
-        );
-
-        if (!isPasswordValid) {
-          throw new Error("Senha incorreta");
-        }
-
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { lastLoginAt: new Date() },
-        });
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-        };
       },
     }),
   ],
@@ -65,6 +77,7 @@ export const authOptions: NextAuthOptions = {
   },
   pages: {
     signIn: "/login",
+    error: "/login",
   },
   session: {
     strategy: "jwt",
